@@ -1,7 +1,7 @@
 import { calendarDate, clockInZone, daySlots, displayDate, loadConfig, slotIsDue } from "./config.js";
 import { createGemini } from "./gemini.js";
 import { publishWithRetries } from "./publish.js";
-import { chooseKeyword, coversRequiredSubjects, normalizeTitle, refreshKeywords, writePost } from "./research.js";
+import { articleFacts, chooseKeyword, draftProblems, normalizeTitle, refreshKeywords, writePost } from "./research.js";
 import { readKeywords, readPosts, writeKeywords, writePosts } from "./store.js";
 
 const IMAGES = [
@@ -69,20 +69,22 @@ export async function runDue({ ignoreClock = false } = {}) {
 
     console.log(`[gemini-agent] ${today} ${slot}: ranking phrase "${keyword.term}"`);
     console.log(`[gemini-agent] Reasoning: ${oneLine(chosen.reasoning)}`);
+    const facts = await articleFacts(gemini, keyword);
     const draft = await draftUntilValid(gemini, {
       keyword,
-      notes: keywordResult.store.notes,
+      notes: facts.notes,
+      names: facts.names,
       titles,
       angle: chosen.reasoning
     });
 
     const payload = {
-      title: clip(draft.title, 255),
+      title: clip(draft.title, 65),
       subtitle: clip(draft.subtitle, 255),
       readTime: readTime(draft.paragraphs),
       date: displayDate(config.timezone),
-      category: "Gold",
-      tags: ["All", "Gold", "Coins", "VR Coin Games"],
+      category: keyword.cluster === "vr" ? "VR Coin Games" : keyword.cluster === "coin" ? "Coins" : "Gold",
+      tags: ["All", keyword.cluster === "vr" ? "VR Coin Games" : keyword.cluster === "coin" ? "Coins" : "Gold"],
       image: IMAGES[posts.length % IMAGES.length],
       content: draft.paragraphs
     };
@@ -112,20 +114,24 @@ async function draftUntilValid(gemini, context) {
 
   for (let attempt = 1; attempt <= 2; attempt += 1) {
     const draft = await writePost(gemini, { ...context, previous: problem });
-    const missing = coversRequiredSubjects(draft.paragraphs);
+    const issues = draftProblems({
+      title: draft.title,
+      paragraphs: draft.paragraphs,
+      html: draft.html,
+      keyword: context.keyword,
+      notes: context.notes,
+      names: context.names || []
+    });
     const duplicate = context.titles.some((title) => normalizeTitle(title) === normalizeTitle(draft.title));
 
-    const thinReason = draft.reasoning.length < 40;
-    if (draft.paragraphs.length >= 6 && !missing.length && draft.title && !duplicate && !thinReason) {
+    if (draft.html && !issues.length && draft.title && !duplicate) {
       return draft;
     }
 
     problem = [
-      draft.paragraphs.length < 6 ? "need 6 paragraphs" : "",
-      missing.length ? `missing ${missing.join(", ")}` : "",
-      !draft.title ? "missing title" : "",
-      duplicate ? `title already used: ${draft.title}` : "",
-      thinReason ? "reasoning too short" : ""
+      draft.html ? "" : "article HTML is missing",
+      ...issues,
+      duplicate ? `title already used: ${draft.title}` : ""
     ].filter(Boolean).join("; ");
     console.error(`[gemini-agent] Draft rejected: ${problem}`);
   }

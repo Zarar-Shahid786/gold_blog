@@ -109,20 +109,69 @@ Return JSON only:
   };
 }
 
-export async function writePost(gemini, { keyword, notes, titles, previous, angle }) {
+export async function articleFacts(gemini, keyword) {
+  const result = await generateJson(gemini, {
+    search: true,
+    temperature: 0.1,
+    maxOutputTokens: 700,
+    prompt: `Search the web for this query only: "${keyword.term}"
+
+Return JSON only:
+{
+  "facts": "What the sources say about this query, under 700 characters, with the source name.",
+  "prices": ["Only prices the sources showed, each with the figure, unit, and source. Empty array if none."],
+  "names": ["Only real game, simulator, coin, place, or product names the sources named. Empty array if none."]
+}
+
+Do not invent a price, a forecast, a game, or a product.`
+  });
+
+  const prices = Array.isArray(result.prices) ? result.prices.map((item) => String(item).trim()).filter(Boolean) : [];
+  const names = Array.isArray(result.names) ? result.names.map((item) => String(item).trim()).filter(Boolean) : [];
+  const aboutPrice = /price|rate|spot|forecast|tola|gram|karat|dollar/i.test(keyword.term);
+  const live = aboutPrice ? await livePriceLine() : "This article is not a price post. Do not mention a gold price, silver price, troy ounce, or premium.";
+
+  return {
+    notes: [
+      String(result.facts || "").slice(0, 700),
+      live,
+      prices.length ? `Source prices: ${prices.join(" | ")}` : "No other price was found. Do not add one.",
+      names.length ? `Real names from sources: ${names.join(", ")}` : "No real product or game name was found. Do not invent one."
+    ].filter(Boolean).join("\n"),
+    names
+  };
+}
+
+async function livePriceLine() {
+  try {
+    const response = await fetch("https://api.gold-api.com/price/XAU", { signal: AbortSignal.timeout(12000) });
+    const gold = await response.json();
+    const price = Number(gold.price);
+    if (!response.ok || !Number.isFinite(price) || price <= 0) {
+      return "Live gold price feed failed. Do not write any gold price.";
+    }
+    return `Live spot gold: ${price} ${gold.currency || "USD"} per troy ounce, feed time ${gold.updatedAt || "unknown"}, source gold-api.com.`;
+  } catch {
+    return "Live gold price feed failed. Do not write any gold price.";
+  }
+}
+
+export async function writePost(gemini, { keyword, notes, titles, previous, angle, names = [] }) {
   const correction = previous ? `Fix the previous draft: ${previous}` : "";
+  const topic = keyword.cluster === "vr" ? "VR coin games" : keyword.cluster === "coin" ? "coins" : "gold";
 
   const draft = await generateJson(gemini, {
-    temperature: 0.6,
+    temperature: 0.5,
     maxOutputTokens: 1400,
     json: true,
-    prompt: `Write one original Gold Hunter blog. Reason first, then write.
+    prompt: `Write one Gold Hunter article about one topic only: ${topic}.
+Keyword: ${keyword.term}
+Why it can rank: ${angle || keyword.reason || "specific search demand"}
 
-Primary search phrase, use these exact words in the title and the first paragraph: ${keyword.term}
-Why this phrase can rank: ${angle || keyword.reason || "specific search demand"}
+Source notes. A price or a product name may be used only when it appears here:
+${notes || "No sources. Do not write any price or product name."}
 
-Search notes. Use a number only when it appears here:
-${notes || "No figures stored. Do not invent prices, dates, or player counts."}
+Real names you may use: ${names.length ? names.join(", ") : "none"}
 
 Do not reuse these titles:
 ${titleBlock(titles)}
@@ -130,17 +179,21 @@ ${correction}
 
 Return JSON only:
 {
-  "reasoning": "Two sentences: the search intent, and how gold, real coins, and VR coin games connect in this article without repeating an old title.",
-  "title": "unique title under 90 characters that includes the primary phrase or a close form of it",
+  "reasoning": "One sentence on the search intent of this single topic.",
+  "title": "a direct search-style title of 60 characters or fewer",
   "subtitle": "one sentence under 140 characters",
-  "paragraphs": ["six paragraphs"]
+  "paragraphs": ["six paragraphs only about this topic"]
 }
 
 Rules:
-- Exactly 6 paragraphs, plain text, no HTML or markdown.
-- Paragraphs 1 and 2 are about gold. 3 and 4 are about real coins. 5 and 6 are about VR coin games, tied back to gold and coins.
-- Teach something specific in each pair. Do not repeat the same point.
-- Original sentences. Do not copy a source word for word.`
+- One topic. Do not add a second subject. A gold post does not discuss VR or coin roll hunting. A coin post does not discuss VR or the gold spot price. A VR post does not discuss troy ounces, spot price, premiums, or coin roll hunting.
+- Write the keyword in normal English. "beginner guide gold prospecting" becomes "a beginner's guide to gold prospecting", not "this beginner guide gold prospecting article".
+- The title is what a person would type into Google. No poetic titles.
+- Put the topic in the first paragraph naturally.
+- If the keyword says best, top, games, or simulator, name at least two real names from the source notes. If the notes have no names, do not call anything the best and do not invent a name.
+- Do not write a price, rate, karat value, or forecast unless that exact figure is in the source notes.
+- Do not repeat a generic explanation of troy ounces, premiums, or coin roll hunting unless the keyword is about that exact subject.
+- Six plain paragraphs. No HTML or markdown.`
   });
 
   const paragraphs = Array.isArray(draft.paragraphs)
@@ -159,13 +212,52 @@ export function normalizeTitle(title) {
   return String(title).toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
 
-export function coversRequiredSubjects(paragraphs) {
-  const text = paragraphs.join(" ").toLowerCase();
-  const missing = [];
-  if (!/\bgold\b/.test(text)) missing.push("gold");
-  if (!/\bcoins?\b/.test(text)) missing.push("coins");
-  if (!/\bvr\b|virtual reality/.test(text)) missing.push("VR coin games");
-  return missing;
+export function draftProblems({ title, paragraphs, html = "", keyword, notes, names }) {
+  const problems = [];
+  const text = paragraphs.join(" ");
+  const lower = text.toLowerCase();
+  const cluster = keyword.cluster;
+  const term = keyword.term.toLowerCase();
+
+  if (!title || title.length > 65) problems.push("title must be 60 characters or fewer and written like a search");
+  if (cluster !== "vr" && /\bvr\b|virtual reality/.test(lower)) problems.push("remove VR from this post");
+  if (cluster !== "coin" && /coin roll hunting/.test(lower)) problems.push("remove coin roll hunting");
+  if (cluster === "vr" && /spot price|troy ounce|coin roll hunting|premium over spot/.test(lower)) {
+    problems.push("VR post must not repeat gold price or coin roll content");
+    problems.push("under each product include price, size, pros, cons, and who it is for, and say when a source did not list that detail");
+  }
+  if (/popular choice|preferred by|excellent visibility|highly recommended|experts agree|most popular/i.test(lower)) {
+    problems.push("remove praise that the source notes do not state");
+  }
+  if (/pann/.test(term) && !/detector/.test(term) && /gold monster|metal detector/i.test(lower)) {
+    problems.push("this is a panning post; move metal detectors such as the Gold Monster 1000 to a detector article");
+  }
+  if (cluster !== "vr" && /\bvr\b|virtual reality/.test(lower)) problems.push("remove VR from this post");
+  if (cluster !== "coin" && /coin roll hunting/.test(lower)) problems.push("remove coin roll hunting");
+  if (cluster === "vr" && /spot price|troy ounce|coin roll hunting|premium over spot/.test(lower)) {
+    problems.push("VR post must not repeat gold price or coin roll content");
+  }
+  if (!/price|rate|spot|forecast|tola|gram|karat|ounce|premium/.test(term) && /spot price|troy ounce|per ounce/.test(lower)) {
+    problems.push("do not repeat the spot price explanation in this post");
+  }
+
+  const words = term.split(/\s+/).filter((word) => word.length > 3);
+  const intro = html.split(/<h2/i)[0].replace(/<[^>]+>/g, " ").toLowerCase();
+  if (words.length && words.filter((word) => intro.includes(word.replace(/'s$/, ""))).length < Math.min(2, words.length)) {
+    problems.push("mention the topic naturally in the opening");
+  }
+
+  for (const hit of text.match(/(?:\$|usd)\s?\d[\d,]*(?:\.\d+)?|\d[\d,]*(?:\.\d+)?\s*(?:per ounce|per tola|per gram|dollars)/gi) || []) {
+    const digits = hit.replace(/[^\d.]/g, "");
+    if (digits && !String(notes).includes(digits)) problems.push(`remove the unsourced price ${hit}`);
+  }
+
+  if (/\b(best|top|games|simulator)\b/.test(term)) {
+    const used = names.filter((name) => name.length > 2 && lower.includes(name.toLowerCase()));
+    if (used.length < 2) problems.push("name at least two real products from the source notes, or do not promise a best-of list");
+  }
+
+  return problems;
 }
 
 function useCounts(posts) {
