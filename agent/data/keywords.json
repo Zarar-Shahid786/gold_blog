@@ -1,0 +1,97 @@
+{
+  "updatedOn": "2026-11-18",
+  "searchVersion": 2,
+  "notes": "As of November 18, 2026, spot gold is trading at approximately $3,777.83 per ounce, reflecting a downward trend due to a strengthening US dollar and Federal Reserve rate hike expectations. New websites can gain traction by targeting specific, low-competition long-tail queries that address beginner intent, such as equipment guides, hobbyist tutorials, and niche gaming strategies, rather than broad, high-volume terms.",
+  "keywords": [
+    {
+      "term": "live gold spot price",
+      "cluster": "gold",
+      "reason": "High intent search for current market rates",
+      "addedOn": "2026-11-18"
+    },
+    {
+      "term": "investing in gold coins",
+      "cluster": "gold",
+      "reason": "Targets users interested in bullion assets",
+      "addedOn": "2026-11-18"
+    },
+    {
+      "term": "coin roll hunting tips",
+      "cluster": "coin",
+      "reason": "Popular hobbyist search for finding coins",
+      "addedOn": "2026-11-18"
+    },
+    {
+      "term": "rare coin collecting guide",
+      "cluster": "coin",
+      "reason": "Attracts enthusiasts looking for valuable coins",
+      "addedOn": "2026-11-18"
+    },
+    {
+      "term": "vr treasure hunt game",
+      "cluster": "vr",
+      "reason": "Connects to virtual reality gaming interests",
+      "addedOn": "2026-11-18"
+    },
+    {
+      "term": "best vr coin simulator",
+      "cluster": "vr",
+      "reason": "Targets users seeking virtual coin experiences",
+      "addedOn": "2026-11-18"
+    },
+    {
+      "term": "beginner guide gold prospecting",
+      "cluster": "gold",
+      "reason": "High intent for novices seeking actionable, step-by-step equipment and location advice.",
+      "addedOn": "2026-11-18"
+    },
+    {
+      "term": "best gold panning equipment",
+      "cluster": "gold",
+      "reason": "Targets users ready to purchase gear who are looking for expert recommendations.",
+      "addedOn": "2026-11-18"
+    },
+    {
+      "term": "how to find gold",
+      "cluster": "gold",
+      "reason": "Addresses the fundamental 'how-to' search intent for hobbyists starting out.",
+      "addedOn": "2026-11-18"
+    },
+    {
+      "term": "coin roll hunting pennies",
+      "cluster": "coin",
+      "reason": "Specific denomination focus is easier to rank for than general coin collecting.",
+      "addedOn": "2026-11-18"
+    },
+    {
+      "term": "how to identify silver",
+      "cluster": "coin",
+      "reason": "Solves a specific problem for new hunters, driving high-value traffic.",
+      "addedOn": "2026-11-18"
+    },
+    {
+      "term": "best coins to collect",
+      "cluster": "coin",
+      "reason": "Captures beginner interest in building a collection with limited budgets.",
+      "addedOn": "2026-11-18"
+    },
+    {
+      "term": "best vr coin games",
+      "cluster": "vr",
+      "reason": "Directly targets users looking for specific entertainment recommendations in VR.",
+      "addedOn": "2026-11-18"
+    },
+    {
+      "term": "vr treasure hunt guide",
+      "cluster": "vr",
+      "reason": "Combines gaming interest with 'how-to' content for better search visibility.",
+      "addedOn": "2026-11-18"
+    },
+    {
+      "term": "play vr coin simulator",
+      "cluster": "vr",
+      "reason": "Captures transactional intent from users looking for specific simulation experiences.",
+      "addedOn": "2026-11-18"
+    }
+  ]
+}
